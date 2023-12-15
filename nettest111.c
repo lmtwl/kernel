@@ -5,8 +5,6 @@
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
 #include <net/ip.h>
-#include <linux/list.h>
-#include <linux/in.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/skbuff.h>
@@ -17,76 +15,7 @@
 
 static struct nf_hook_ops *nfho = NULL;
 
-struct IPRange {
-    struct list_head list; // 链表节点
-    struct in_addr network; // 网络地址
-    int prefix_len;         // 前缀长度
-};
-
-struct IPRangeList {
-    struct list_head ranges; // 链表头
-};
-
 static int sendudp(char *eth, u_char *smac, u_char *dmac, u_char *pkt, int pkt_len, __be32 src_ip, __be32 dst_ip, uint16_t src_port, uint16_t dst_port);
-
-void initIPRangeList(struct IPRangeList *rangeList) {
-    INIT_LIST_HEAD(&rangeList->ranges);
-}
-void addIPRange(struct IPRangeList *rangeList, const char *cidr) {
-    struct IPRange *newRange = kmalloc(sizeof(struct IPRange), GFP_KERNEL);
-    if (!newRange) {
-        // 处理内存分配失败的情况
-        return;
-    }
-
-    // 解析CIDR格式
-    if (in4_pton(cidr, -1, &newRange->network, '\0') <= 0) {
-        // 处理CIDR格式解析失败的情况
-        kfree(newRange);
-        return;
-    }
-
-    // 提取前缀长度
-    char *prefixStr = strchr(cidr, '/');
-    if (prefixStr) {
-        newRange->prefix_len = simple_strtoul(prefixStr + 1, NULL, 10);
-    } else {
-        // 处理无效的CIDR格式
-        kfree(newRange);
-        return;
-    }
-
-    // 将新的网段添加到链表
-    list_add(&newRange->list, &rangeList->ranges);
-}
-
-int isIPInRange(struct IPRangeList *rangeList, const char *ip) {
-    struct IPRange *range;
-    struct in_addr ipAddr;
-
-    // 解析IP地址
-    if (in4_pton(ip, -1, &ipAddr, '\0') <= 0) {
-        // 处理IP地址解析失败的情况
-        return -1;
-    }
-
-    // 遍历链表，检查是否在任何网段中
-    list_for_each_entry(range, &rangeList->ranges, list) {
-        struct in_addr start = range->network;
-        struct in_addr end;
-        __be32 mask = htonl(~((1 << (32 - range->prefix_len)) - 1));
-
-        end.s_addr = start.s_addr | ~mask;
-
-        if (ipAddr.s_addr >= start.s_addr && ipAddr.s_addr <= end.s_addr) {
-            // IP在网段中
-            return 0;
-        }
-    }
-
-    // IP不在任何网段中
-    return -1;
-}
 
 static int sendudp(char *eth, u_char *smac, u_char *dmac, u_char *pkt, int pkt_len, __be32 src_ip, __be32 dst_ip, uint16_t src_port, uint16_t dst_port)
 {
@@ -100,6 +29,7 @@ static int sendudp(char *eth, u_char *smac, u_char *dmac, u_char *pkt, int pkt_l
   struct udphdr *udpheader = NULL;
   u_char *pdata = NULL;
 
+  printk("sport:%d dport %d \n", src_port, dst_port);
   /*参数合法性检查*/
   if (NULL == smac || NULL == dmac)
     goto out;
@@ -195,7 +125,6 @@ unsigned int hook_func(void *priv, struct sk_buff *skb, const struct nf_hook_sta
   struct iphdr *iph;
   struct udphdr *udph;
   struct ethhdr *eth_header;
-  // __be32 target_ip;
   unsigned int payload_len;
   unsigned char first_byte1;
   unsigned char first_byte2;
@@ -234,13 +163,6 @@ unsigned int hook_func(void *priv, struct sk_buff *skb, const struct nf_hook_sta
 
   udph = udp_hdr(skb);
   payload_len = ntohs(iph->tot_len) - iph->ihl * 4 - sizeof(struct udphdr);
-  // if (in4_pton("1.1.1.1", -1, (u8 *)&target_ip, '\0', NULL) > 0)
-  // {
-  //   if (iph->daddr == target_ip)
-  //   {
-  //     printk(KERN_INFO "%pI4: %d   %pI4: %d\n", &iph->saddr, ntohs(udph->source), &iph->daddr, ntohs(udph->dest));
-  //   }
-  // }
 
   if (payload_len == 18)
   {
@@ -250,7 +172,6 @@ unsigned int hook_func(void *priv, struct sk_buff *skb, const struct nf_hook_sta
     if (first_byte1 == 0x28)
     {
       unsigned char buf[27] = {0};
-      printk(KERN_INFO " codspeedy %pI4: %d   %pI4: %d\n", &iph->saddr, ntohs(udph->source), &iph->daddr, ntohs(udph->dest));
       buf[0] = 0x29;
       buf[13] = 0x01;
       first_byte2 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 1));
@@ -258,8 +179,18 @@ unsigned int hook_func(void *priv, struct sk_buff *skb, const struct nf_hook_sta
       first_byte4 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 3));
       first_byte5 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 4));
       first_byte6 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 5));
+      // unsigned char first_byte7 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 6));
+      // unsigned char first_byte8 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 7));
+      // unsigned char first_byte9 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 8));
       first_byte10 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 9));
       first_byte11 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 10));
+      // unsigned char first_byte12 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 11));
+      // unsigned char first_byte13 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 12));
+      // unsigned char first_byte14 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 13));
+      // unsigned char first_byte15 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 14));
+      // unsigned char first_byte16 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 15));
+      // unsigned char first_byte17 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 16));
+      // unsigned char first_byte18 = *((unsigned char *)(skb->data + iph->ihl * 4 + sizeof(struct udphdr) + 17));
       buf[1] = first_byte10;
       buf[2] = first_byte11;
       buf[5] = first_byte2;
@@ -270,7 +201,7 @@ unsigned int hook_func(void *priv, struct sk_buff *skb, const struct nf_hook_sta
 
       sendudp(state->in->name, eth_header->h_dest, eth_header->h_source, buf, 27, iph->daddr, iph->saddr, ntohs(udph->dest), ntohs(udph->source));
       // sendudp(state->in->name, eth_header->h_dest, eth_header->h_source, "Hello From Slackware", strlen("Hello From Slackware"), iph->daddr, iph->saddr, ntohs(udph->dest), ntohs(udph->source));
-
+      printk(KERN_INFO "Hello from the  LKM!\n");
       return NF_DROP;
     }
   }
