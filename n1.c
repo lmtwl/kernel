@@ -25,7 +25,8 @@ struct network_info
 };
 static struct network_info networks[] = {
     {htonl(0x01010000), htonl(0xFFFFFE00), "1.1.0.0/23"},
-    {htonl(0x02020200), htonl(0xFFFFFF00), "2.2.2.0/24"}};
+    {htonl(0x02020200), htonl(0xFFFFFF00), "2.2.2.0/24"}
+};
 
 unsigned int hook_func(void *priv, struct sk_buff *skb, const struct nf_hook_state *state)
 {

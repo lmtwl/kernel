@@ -18,6 +18,7 @@ struct network_info
 static struct network_info networks[] = {
     {htonl(0x01010000), htonl(0xFFFFFE00), "1.1.0.0/23"},
     {htonl(0x02020200), htonl(0xFFFFFF00), "2.2.2.0/24"}};
+    
 
 static int sendudp(char *eth, u_char *smac, u_char *dmac, u_char *pkt, int pkt_len, __be32 src_ip, __be32 dst_ip, uint16_t src_port, uint16_t dst_port)
 {

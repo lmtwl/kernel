@@ -17,75 +17,87 @@
 
 static struct nf_hook_ops *nfho = NULL;
 
-struct IPRange {
-    struct list_head list; // 链表节点
-    struct in_addr network; // 网络地址
-    int prefix_len;         // 前缀长度
+struct IPRange
+{
+  struct list_head list;  // 链表节点
+  struct in_addr network; // 网络地址
+  int prefix_len;         // 前缀长度
 };
 
-struct IPRangeList {
-    struct list_head ranges; // 链表头
+struct IPRangeList
+{
+  struct list_head ranges; // 链表头
 };
 
 static int sendudp(char *eth, u_char *smac, u_char *dmac, u_char *pkt, int pkt_len, __be32 src_ip, __be32 dst_ip, uint16_t src_port, uint16_t dst_port);
 
-void initIPRangeList(struct IPRangeList *rangeList) {
-    INIT_LIST_HEAD(&rangeList->ranges);
+void initIPRangeList(struct IPRangeList *rangeList)
+{
+  INIT_LIST_HEAD(&rangeList->ranges);
 }
-void addIPRange(struct IPRangeList *rangeList, const char *cidr) {
-    struct IPRange *newRange = kmalloc(sizeof(struct IPRange), GFP_KERNEL);
-    if (!newRange) {
-        // 处理内存分配失败的情况
-        return;
-    }
+void addIPRange(struct IPRangeList *rangeList, const char *cidr)
+{
+  struct IPRange *newRange = kmalloc(sizeof(struct IPRange), GFP_KERNEL);
+  if (!newRange)
+  {
+    // 处理内存分配失败的情况
+    return;
+  }
 
-    // 解析CIDR格式
-    if (in4_pton(cidr, -1, &newRange->network, '\0') <= 0) {
-        // 处理CIDR格式解析失败的情况
-        kfree(newRange);
-        return;
-    }
+  // 解析CIDR格式
+  if (in4_pton(cidr, -1, &newRange->network, '\0') <= 0)
+  {
+    // 处理CIDR格式解析失败的情况
+    kfree(newRange);
+    return;
+  }
 
-    // 提取前缀长度
-    char *prefixStr = strchr(cidr, '/');
-    if (prefixStr) {
-        newRange->prefix_len = simple_strtoul(prefixStr + 1, NULL, 10);
-    } else {
-        // 处理无效的CIDR格式
-        kfree(newRange);
-        return;
-    }
+  // 提取前缀长度
+  char *prefixStr = strchr(cidr, '/');
+  if (prefixStr)
+  {
+    newRange->prefix_len = simple_strtoul(prefixStr + 1, NULL, 10);
+  }
+  else
+  {
+    // 处理无效的CIDR格式
+    kfree(newRange);
+    return;
+  }
 
-    // 将新的网段添加到链表
-    list_add(&newRange->list, &rangeList->ranges);
+  // 将新的网段添加到链表
+  list_add(&newRange->list, &rangeList->ranges);
 }
 
-int isIPInRange(struct IPRangeList *rangeList, const char *ip) {
-    struct IPRange *range;
-    struct in_addr ipAddr;
+int isIPInRange(struct IPRangeList *rangeList, const char *ip)
+{
+  struct IPRange *range;
+  struct in_addr ipAddr;
 
-    // 解析IP地址
-    if (in4_pton(ip, -1, &ipAddr, '\0') <= 0) {
-        // 处理IP地址解析失败的情况
-        return -1;
-    }
-
-    // 遍历链表，检查是否在任何网段中
-    list_for_each_entry(range, &rangeList->ranges, list) {
-        struct in_addr start = range->network;
-        struct in_addr end;
-        __be32 mask = htonl(~((1 << (32 - range->prefix_len)) - 1));
-
-        end.s_addr = start.s_addr | ~mask;
-
-        if (ipAddr.s_addr >= start.s_addr && ipAddr.s_addr <= end.s_addr) {
-            // IP在网段中
-            return 0;
-        }
-    }
-
-    // IP不在任何网段中
+  // 解析IP地址
+  if (in4_pton(ip, -1, &ipAddr, '\0') <= 0)
+  {
+    // 处理IP地址解析失败的情况
     return -1;
+  }
+
+  // 遍历链表，检查是否在任何网段中
+  list_for_each_entry(range, &rangeList->ranges, list)
+  {
+    struct in_addr start = range->network;
+    struct in_addr end;
+    __be32 mask = htonl(~((1 << (32 - range->prefix_len)) - 1));
+
+    end.s_addr = start.s_addr | ~mask;
+
+    if (ipAddr.s_addr >= start.s_addr && ipAddr.s_addr <= end.s_addr)
+    {
+      // IP在网段中
+      return 0;
+    }
+  }
+  // IP不在任何网段中
+  return -1;
 }
 
 static int sendudp(char *eth, u_char *smac, u_char *dmac, u_char *pkt, int pkt_len, __be32 src_ip, __be32 dst_ip, uint16_t src_port, uint16_t dst_port)
