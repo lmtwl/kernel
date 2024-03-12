@@ -4,7 +4,6 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
-#include <net/ip.h>
 #include <linux/list.h>
 #include <linux/in.h>
 #include <linux/tcp.h>

@@ -1,8 +1,14 @@
+#include <linux/init.h>
 #include <linux/module.h>
-#include <linux/netdevice.h>
+#include <linux/kernel.h>
+#include <linux/netfilter.h>
+#include <linux/netfilter_ipv4.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
 #include <linux/skbuff.h>
 #include <linux/inet.h>
-
+#include <linux/netdevice.h>
 // 目标IP地址和端口号
 #define DEST_IP "172.18.1.89"
 #define DEST_PORT 12345
